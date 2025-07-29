@@ -10,15 +10,21 @@ hands=mp_hands.Hands(
 )
 cap= cv2.VideoCapture(0)
 tip_ids = [4, 8, 12, 16, 20]
-def count_fingers(image, hand_landmarks):
+def count_fingers(image, hand_landmarks, hand_label):
     if hand_landmarks:
-        landmarks= hand_landmarks[0].landmark
+        landmarks= hand_landmarks.landmark
         fingers = []
         # Thumb
-        if landmarks[tip_ids[0]].x < landmarks[tip_ids[0] - 1].x:
-            fingers.append(1)
+        if(hand_label== 'Right'):
+            if landmarks[tip_ids[0]].x < landmarks[tip_ids[0] - 1].x:
+                fingers.append(1)
+            else:
+                fingers.append(0)
         else:
-            fingers.append(0)
+            if landmarks[tip_ids[0]].x > landmarks[tip_ids[0] - 1].x:
+                fingers.append(1)
+            else:
+                fingers.append(0)
         # Other fingers
         for id in range(1, 5):
             if landmarks[tip_ids[id]].y < landmarks[tip_ids[id] - 2].y:
@@ -27,6 +33,14 @@ def count_fingers(image, hand_landmarks):
                 fingers.append(0)
         total_fingers = sum(fingers)
     return total_fingers
+def is_palm_facing(hand_landmarks, hand_label):
+    thumb_tip = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
+    index_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP]
+
+    if hand_label == "Right":
+        return thumb_tip.x < index_mcp.x
+    else:
+        return thumb_tip.x > index_mcp.x
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
@@ -36,11 +50,16 @@ while cap.isOpened():
     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(image_rgb)
 
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            total_fingers = count_fingers(frame, results.multi_hand_landmarks)
+    if results.multi_hand_landmarks and results.multi_handedness:
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
+            hand_label = handedness.classification[0].label  # 'Left' or 'Right'
+            palm_facing = is_palm_facing(hand_landmarks, hand_label)
+            finger_count = count_fingers(frame,hand_landmarks, hand_label)
+
+            info_text = f"Fingers: {finger_count}"
+
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            cv2.putText(frame, f'Fingers: {total_fingers}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            cv2.putText(frame, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
     cv2.imshow('Finger Counter', frame)
 
