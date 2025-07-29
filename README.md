@@ -1,2 +1,2 @@
 # finger_counter
-Created a right hand finger counter
+Created a palm facing finger counter
